@@ -1,0 +1,23 @@
+---
+- name: Listen for events on a webhook
+  hosts: all
+  ## Define our source for events
+  sources:
+     - ansible.eda.url_check:
+        verify_ssl: false
+        urls:
+          - http://ec2-3-15-13-215.us-east-2.compute.amazonaws.com/
+        delay: 10
+
+  rules:
+    - name: Web site is up
+      condition: event.url_check.status == "up"
+      action:
+        debug:
+          msg: "Site is up"
+
+    - name: Web site is down
+      condition: event.url_check.status == "down"
+      action:
+        debug:
+          msg: "Site is down"
