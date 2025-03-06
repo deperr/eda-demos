@@ -6,7 +6,7 @@
      - ansible.eda.url_check:
         verify_ssl: false
         urls:
-          - http://ec2-3-15-13-215.us-east-2.compute.amazonaws.com/
+          - http://3.15.13.215
         delay: 10
 
   rules:
