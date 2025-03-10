@@ -17,11 +17,11 @@
         debug:
           msg: "Site is up"
 
-    # - name: Web site is down
-    #   condition: event.url_check.status == "down"
-    #   action:
-    #     debug:
-    #       msg: "Site is down"
+    - name: Web site is down
+      condition: event.url_check.status == "down"
+      action:
+        debug:
+          msg: "Site is down. Running remediations"
 
     - name: Web site is down
       condition: event.url_check.status == "down"
