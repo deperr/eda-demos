@@ -1,0 +1,25 @@
+---
+
+- name: Listen for events on a webhook
+  hosts: all
+  ## Define our source for events
+  sources:
+     - ansible.eda.url_check:
+        verify_ssl: false
+        urls:
+          - http://192.168.5.65
+        delay: 10
+
+  rules:
+    - name: Web site is up
+      condition: event.url_check.status == "up"
+      action:
+        debug:
+          msg: "Site is up"
+
+    - name: Web site is down
+      condition: event.url_check.status == "down"
+      action:
+        run_job_template:
+          name: "EDA Site Down Response"
+          organization: "Default"
