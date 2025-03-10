@@ -26,8 +26,6 @@
     - name: Trigger automation to fix issue
       condition: event.url_check.status == "down"
       action:
-        debug:
-          msg: "Site is down. Running remediations"
         run_job_template:
           name: "EDA Site Down Response"
           organization: "Default"
