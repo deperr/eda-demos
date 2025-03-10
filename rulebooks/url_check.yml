@@ -23,7 +23,7 @@
         debug:
           msg: "Site is down. Running remediations"
 
-    - name: Web site is down
+    - name: Trigger automation to fix issue
       condition: event.url_check.status == "down"
       action:
         run_job_template:
