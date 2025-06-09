@@ -7,7 +7,7 @@
      - ansible.eda.url_check:
         verify_ssl: false
         urls:
-          - http://192.168.5.65
+          - http://rhel-web-01.dperrone.dev:8081
         delay: 10
 
   rules:
@@ -21,5 +21,5 @@
       condition: event.url_check.status == "down"
       action:
         run_job_template:
-          name: "EDA Site Down Response"
+          name: "EDA | Fix Web Service"
           organization: "Default"
