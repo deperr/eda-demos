@@ -4,6 +4,8 @@
   hosts: web_servers
   gather_facts: false
   become: false
+  vars:
+    volume_path: podman
 
   tasks:
     - name: Send debug message that the website is down
