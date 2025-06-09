@@ -7,10 +7,10 @@
 
   tasks:
 
-    - name: Fix the webservice container
+    - name: Break the web service container
       containers.podman.podman_container:
         name: apache
-        state: started
+        state: stopped
 
     - name: Send debug message that the website is down
       ansible.builtin.debug:
