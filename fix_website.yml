@@ -13,8 +13,12 @@
     - name: Fix the webservice container
       containers.podman.podman_container:
         name: apache
-        image: docker.io/library/httpd:latest
+        image: docker.io/httpd
         state: started
+        volume:
+          - "./{{ volume_path }}/:/usr/local/apache2/htdocs:z"
+        ports:
+          - "8081:80"
 
     # - name: Start web service
     #   ansible.builtin.service:
