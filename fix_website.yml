@@ -3,7 +3,7 @@
 - name: Restore website
   hosts: web_servers
   gather_facts: false
-  become: true
+  become: false
 
   tasks:
     - name: Send debug message that the website is down
