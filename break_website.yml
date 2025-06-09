@@ -1,7 +1,7 @@
 ---
 
 - name: Break website
-  hosts: web
+  hosts: web_servers
   gather_facts: false
   become: true
 
