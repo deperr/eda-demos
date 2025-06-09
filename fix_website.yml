@@ -13,6 +13,7 @@
     - name: Fix the webservice container
       containers.podman.podman_container:
         name: apache
+        image: docker.io/library/httpd:latest
         state: started
 
     # - name: Start web service
