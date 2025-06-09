@@ -10,7 +10,7 @@
   tasks:
     - name: Send debug message that the website is down
       ansible.builtin.debug:
-        msg: "Website is down!"
+        msg: "Website is being restored"
 
     - name: Fix the webservice container
       containers.podman.podman_container:
