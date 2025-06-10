@@ -21,7 +21,6 @@
           - "./{{ volume_path }}/:/usr/local/apache2/htdocs:z"
         ports:
           - "8081:80"
-          - "8443:443"
 
     - name: Check the web page
       register: web_output
