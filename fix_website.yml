@@ -23,6 +23,18 @@
           - "8081:80"
           - "8443:443"
 
+    - name: Check the web page
+      register: web_output
+      changed_when: false
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8081
+        return_content: true
+
+    - name: Register output of podman ps
+      register: podman_output
+      changed_when: false
+      ansible.builtin.command: podman ps
+
     - name: Output
       ansible.builtin.debug:
         msg:
