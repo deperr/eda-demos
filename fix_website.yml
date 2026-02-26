@@ -42,9 +42,4 @@
           - "Contents of web page:"
           - "{{ web_output.content }}"
 
-    # - name: Start web service
-    #   ansible.builtin.service:
-    #     name: httpd
-    #     state: started
-    #     enabled: true
-
+ 
