@@ -12,29 +12,17 @@
 
   rules:
 
-    # - name: Web site is up
-    #   condition: event.url_check.status == "up"
-    #   action:
-    #     debug:
-    #       msg: "Site is up"
-
-    # - name: Web site is down
-    #   condition: event.url_check.status == "down"
-    #   action:
-    #     debug:
-    #       msg: "Site is up"
-
-    - name: Debug full event payload
-      condition: event.url_check is defined
+    - name: Check that Web site is up
+      condition: event.url_check.status == "up"
       action:
         debug:
-          msg: "{{ event }}"
+          msg: "Site is up"
 
-    # - name: Trigger automation to fix issue
-    #   condition: event.url_check.status == "down"
-    #   action:
-    #     run_job_template:
-    #       name: "EDA | Fix Web Service"
-    #       organization: "Default"
-    #       job_args:
-    #         limit: "{{ event.url_check.url.split('//')[1].split(':')[0] }}"
+    - name: Trigger automation to fix issue
+      condition: event.url_check.status == "down"
+      action:
+        run_job_template:
+          name: "EDA | Fix Web Service"
+          organization: "Default"
+          job_args:
+            limit: "{{ event.url_check.url.split('//')[1].split(':')[0] }}"
