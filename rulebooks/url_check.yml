@@ -4,11 +4,11 @@
   hosts: all
   ## Define our source for events
   sources:
-     - ansible.eda.url_check:
-        verify_ssl: false
-        urls:
-          - http://web01.dperrone.dev:8081
-        delay: 10
+    - ansible.eda.url_check:
+      verify_ssl: false
+      urls:
+        - http://web01.dperrone.dev:8081
+      delay: 10
 
   rules:
     - name: Web site is up
