@@ -12,11 +12,11 @@
 
   rules:
 
-    - name: Check that Web site is up
-      condition: event.url_check.status == "up"
-      action:
-        debug:
-          msg: "Site is up"
+    # - name: Check that Web site is up
+    #   condition: event.url_check.status == "up"
+    #   action:
+    #     debug:
+    #       msg: "Site is up"
 
     - name: Trigger automation to fix issue
       condition: event.url_check.status == "down"
