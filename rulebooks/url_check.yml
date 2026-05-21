@@ -23,3 +23,5 @@
         run_job_template:
           name: "EDA | Fix Web Service"
           organization: "Default"
+          job_args:
+            limit: "{{ event.url_check.host }}"

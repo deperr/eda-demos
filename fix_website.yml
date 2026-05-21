@@ -5,7 +5,7 @@
   gather_facts: false
   become: false
   vars:
-    volume_path: podman
+    volume_path: /home/dperrone/podman
 
   tasks:
     - name: Send debug message that the website is down
@@ -18,7 +18,7 @@
         image: docker.io/httpd
         state: started
         volume:
-          - "./{{ volume_path }}/:/usr/local/apache2/htdocs:z"
+          - "{{ volume_path }}:/usr/local/apache2/htdocs:z"
         ports:
           - "8081:80"
 
