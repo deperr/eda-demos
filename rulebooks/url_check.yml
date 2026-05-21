@@ -24,4 +24,4 @@
           name: "EDA | Fix Web Service"
           organization: "Default"
           job_args:
-            limit: "{{ event.url_check.host }}"
+            limit: "{{ event.url_check.url | urlsplit('hostname') }}"
