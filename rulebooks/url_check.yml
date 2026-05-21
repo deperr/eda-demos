@@ -11,12 +11,7 @@
         delay: 10
 
   rules:
-    - name: Debug full event payload
-      condition: event.url_check is defined
-      action:
-        debug:
-          msg: "{{ event }}"
-
+  
     - name: Web site is up
       condition: event.url_check.status == "up"
       action:
