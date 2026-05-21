@@ -1,0 +1,50 @@
+---
+
+- name: Remediate unauthorized sudoers modification
+  hosts: all
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Validate current sudoers file syntax
+      register: sudoers_check
+      failed_when: false
+      changed_when: false
+      ansible.builtin.command: visudo -c
+
+    - name: Display validation result
+      ansible.builtin.debug:
+        msg: "{{ sudoers_check.stdout_lines }}"
+
+    - name: Restore sudoers from backup if syntax is invalid
+      when: sudoers_check.rc != 0
+      ansible.builtin.copy:
+        src: /etc/sudoers.bak
+        dest: /etc/sudoers
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0440"
+        validate: visudo -cf %s
+
+    - name: Restore sudoers from backup if unauthorized change detected
+      when: sudoers_check.rc == 0
+      ansible.builtin.copy:
+        src: /etc/sudoers.bak
+        dest: /etc/sudoers
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0440"
+        validate: visudo -cf %s
+
+    - name: Verify restored sudoers file
+      register: final_check
+      changed_when: false
+      ansible.builtin.command: visudo -c
+
+    - name: Display final validation
+      ansible.builtin.debug:
+        msg:
+          - "Sudoers remediation complete"
+          - "{{ final_check.stdout_lines }}"
