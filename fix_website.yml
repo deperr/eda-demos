@@ -12,6 +12,12 @@
       ansible.builtin.debug:
         msg: "Website is being restored"
 
+    - name: Ensure podman directory exists
+      ansible.builtin.file:
+        path: "{{ volume_path }}"
+        state: directory
+        mode: "0755"
+
     - name: Fix the webservice container
       containers.podman.podman_container:
         name: apache
