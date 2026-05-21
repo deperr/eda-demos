@@ -18,6 +18,14 @@
         state: directory
         mode: "0755"
 
+    - name: Ensure 8081/tcp is open in firewalld
+      become: true
+      ansible.posix.firewalld:
+        port: 8081/tcp
+        permanent: true
+        immediate: true
+        state: enabled
+
     - name: Fix the webservice container
       containers.podman.podman_container:
         name: apache

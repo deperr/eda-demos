@@ -12,17 +12,17 @@
 
   rules:
 
-    - name: Web site is up
-      condition: event.url_check.status == "up"
-      action:
-        debug:
-          msg: "Site is up"
+    # - name: Web site is up
+    #   condition: event.url_check.status == "up"
+    #   action:
+    #     debug:
+    #       msg: "Site is up"
 
-    - name: Web site is down
-      condition: event.url_check.status == "down"
-      action:
-        debug:
-          msg: "Site is up"
+    # - name: Web site is down
+    #   condition: event.url_check.status == "down"
+    #   action:
+    #     debug:
+    #       msg: "Site is up"
 
     - name: Debug full event payload
       condition: event.url_check is defined
