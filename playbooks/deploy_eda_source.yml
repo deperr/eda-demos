@@ -3,132 +3,73 @@
   hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
-    kafka_version: "3.7.0"
-    kafka_scala_version: "2.13"
-    kafka_install_dir: "/opt/kafka"
-    # A unique ID for the Kafka KRaft cluster
-    cluster_id: "REhBLUVEQS1IQU1FLUxBQi0yMDI2"
+    kafka_image: "docker.io/apache/kafka:latest"
+    container_name: "kafka-eda"
+    # KRaft requires a static Cluster ID. This is a standard Base64 UUID.
+    cluster_id: "MkU3OEVBNTcwNTJENDM2Qk"
+    # Ensure this matches the host the rulebook will talk to
+    advertised_hostname: "web03.dperrone.dev"
 
   tasks:
-    ## --- SECTION 1: KAFKA INSTALLATION --- ##
-    
-    - name: Install Java 17
-      ansible.builtin.dnf:
-        name: java-17-openjdk-headless
-        state: present
+    # --- PHASE 1: THE SCORCHED EARTH CLEANUP ---
+    - name: Stop and remove existing Kafka container if it exists
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        state: absent
+        stop_time: 10
 
-    - name: Create kafka group
-      ansible.builtin.group:
-        name: kafka
-        state: present
+    - name: Kill any lingering Kafka/Zookeeper processes
+      ansible.builtin.shell: "pkill -9 -f 'kafka|zookeeper' || true"
+      changed_when: false
 
-    - name: Create kafka user
-      ansible.builtin.user:
-        name: kafka
-        group: kafka
-        shell: /sbin/nologin
-        state: present
-
-    - name: Download and Unarchive Kafka
-      ansible.builtin.unarchive:
-        src: "https://archive.apache.org/dist/kafka/{{ kafka_version }}/kafka_{{ kafka_scala_version }}-{{ kafka_version }}.tgz"
-        dest: /opt
-        remote_src: yes
-        owner: kafka
-        group: kafka
-        creates: "/opt/kafka_{{ kafka_scala_version }}-{{ kafka_version }}"
-
-    - name: Create symlink to /opt/kafka
+    - name: Remove stale data directories and logs
       ansible.builtin.file:
-        src: "/opt/kafka_{{ kafka_scala_version }}-{{ kafka_version }}"
-        dest: "{{ kafka_install_dir }}"
-        state: link
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/var/lib/kafka"
+        - "/var/lib/zookeeper"
+        - "/tmp/kafka-logs"
+        - "/tmp/zookeeper"
 
-    - name: Format Kafka Storage (KRaft Mode)
-      ansible.builtin.command:
-        cmd: "{{ kafka_install_dir }}/bin/kafka-storage.sh format -t {{ cluster_id }} -c {{ kafka_install_dir }}/config/kraft/server.properties"
-      become_user: kafka
-      args:
-        creates: "{{ kafka_install_dir }}/logs/meta.properties"
-
-    - name: Create Kafka Systemd Service
-      ansible.builtin.copy:
-        dest: /etc/systemd/system/kafka.service
-        content: |
-          [Unit]
-          Description=Apache Kafka Server
-          After=network.target
-
-          [Service]
-          Type=simple
-          User=kafka
-          Group=kafka
-          Environment="KAFKA_HEAP_OPTS=-Xmx512M -Xms512M"
-          ExecStart={{ kafka_install_dir }}/bin/kafka-server-start.sh {{ kafka_install_dir }}/config/kraft/server.properties
-          ExecStop={{ kafka_install_dir }}/bin/kafka-server-stop.sh
-          Restart=on-failure
-
-          [Install]
-          WantedBy=multi-user.target
-      notify: Reload Systemd
-
-    - name: Ensure Kafka is running
-      ansible.builtin.systemd:
-        name: kafka
-        state: started
-        enabled: true
-
-    ## --- SECTION 2: FILEBEAT INSTALLATION --- ##
-
-    - name: Import Elastic GPG Key
-      ansible.builtin.rpm_key:
-        state: present
-        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
-
-    - name: Add Elastic RPM Repository
-      ansible.builtin.yum_repository:
-        name: elastic-8.x
-        description: Elastic repository for 8.x packages
-        baseurl: https://artifacts.elastic.co/packages/8.x/yum
-        gpgcheck: yes
-        gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
-        enabled: yes
-
-    - name: Install Filebeat
+    # --- PHASE 2: FRESH DEPLOYMENT ---
+    - name: Ensure Podman is installed
       ansible.builtin.dnf:
-        name: filebeat
+        name: podman
         state: present
 
-    - name: Configure Filebeat for Kafka Output
-      ansible.builtin.copy:
-        dest: /etc/filebeat/filebeat.yml
-        content: |
-          filebeat.inputs:
-          - type: log
-            enabled: true
-            paths:
-              - /etc/sudoers
-              - /etc/hosts
-          
-          output.kafka:
-            hosts: ["localhost:9092"]
-            topic: "system-events"
-          
-          logging.level: info
-      notify: Restart Filebeat
+    - name: Create persistent volume for Kafka
+      containers.podman.podman_volume:
+        name: kafka_data
+        state: present
 
-    - name: Ensure Filebeat is running
-      ansible.builtin.systemd:
-        name: filebeat
+    - name: Run Official Apache Kafka (KRaft Mode)
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        image: "{{ kafka_image }}"
         state: started
-        enabled: true
+        recreate: yes
+        restart_policy: always
+        ports:
+          - "9092:9092"
+        env:
+          # Node configuration
+          KAFKA_NODE_ID: "1"
+          KAFKA_PROCESS_ROLES: "broker,controller"
+          KAFKA_CLUSTER_ID: "{{ cluster_id }}"
+          # Networking
+          KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://{{ advertised_hostname }}:9092"
+          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+          # EDA Optimization: Allow auto-creation of topics
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+        volume:
+          - "kafka_data:/var/lib/kafka/data:Z"
 
-  handlers:
-    - name: Reload Systemd
-      ansible.builtin.systemd:
-        daemon_reload: true
-
-    - name: Restart Filebeat
-      ansible.builtin.systemd:
-        name: filebeat
-        state: restarted
+    - name: Wait for Kafka to respond on 9092
+      ansible.builtin.wait_for:
+        port: 9092
+        host: "{{ advertised_hostname }}"
+        timeout: 60
