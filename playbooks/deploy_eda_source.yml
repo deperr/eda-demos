@@ -6,26 +6,26 @@
     kafka_image: "docker.io/apache/kafka:latest"
     container_name: "kafka-eda"
     cluster_id: "MkU3OEVBNTcwNTJENDM2Qk"
-    advertised_hostname: "web03.dperrone.dev"
+    advertised_hostname: "{{ _hosts }}"
 
   tasks:
 
-    - name: Stop and remove existing Kafka container if it exists
-      containers.podman.podman_container:
-        name: "{{ container_name }}"
-        state: absent
-        stop_time: 10
+    # - name: Stop and remove existing Kafka container if it exists
+    #   containers.podman.podman_container:
+    #     name: "{{ container_name }}"
+    #     state: absent
+    #     stop_time: 10
 
-    - name: Remove stale data directories and logs
-      become: true
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: absent
-      loop:
-        - "/var/lib/kafka"
-        - "/var/lib/zookeeper"
-        - "/tmp/kafka-logs"
-        - "/tmp/zookeeper"
+    # - name: Remove stale data directories and logs
+    #   become: true
+    #   ansible.builtin.file:
+    #     path: "{{ item }}"
+    #     state: absent
+    #   loop:
+    #     - "/var/lib/kafka"
+    #     - "/var/lib/zookeeper"
+    #     - "/tmp/kafka-logs"
+    #     - "/tmp/zookeeper"
 
     - name: Ensure Podman is installed
       become: true
