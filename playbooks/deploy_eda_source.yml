@@ -3,7 +3,7 @@
   hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
-    kafka_image: "bitnami/kafka:latest"
+    kafka_image: "docker.io/bitnami/kafka:latest"
     filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
     network_name: "eda_network"
 
