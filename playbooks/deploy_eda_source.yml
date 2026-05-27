@@ -1,7 +1,7 @@
 ---
 - name: Deploy EDA Event Source Stack on web server
   hosts: "{{ _hosts | default(omit) }}"
-  become: true
+  become: false
   vars:
     kafka_image: "docker.io/apache/kafka:latest"
     container_name: "kafka-eda"
@@ -17,6 +17,7 @@
         stop_time: 10
 
     - name: Remove stale data directories and logs
+      become: true
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
@@ -27,6 +28,7 @@
         - "/tmp/zookeeper"
 
     - name: Ensure Podman is installed
+      become: true
       ansible.builtin.dnf:
         name: podman
         state: present
