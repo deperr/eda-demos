@@ -79,18 +79,22 @@
         mode: '0755'
 
     - name: Configure Filebeat
+      become: true
       ansible.builtin.copy:
         dest: "{{ filebeat_conf_dir }}/filebeat.yml"
+        owner: root
+        group: root
         mode: '0600'
         content: |
           filebeat.inputs:
           - type: log
             enabled: true
             paths:
-              - /var/log/host_logs/*.log
+              - /var/log/host_logs/messages
+              - /var/log/host_logs/audit/audit.log
           
           output.kafka:
-            hosts: ["web02.dperrone.dev:9092"]
+            hosts: ["{{ _hosts }}:9092"]
             topic: "{{ kafka_topic }}"
 
     - name: Run Filebeat Container
