@@ -47,6 +47,7 @@
         state: present
 
     - name: Run Official Apache Kafka (KRaft Mode)
+      become: true
       containers.podman.podman_container:
         name: "kafka-eda"
         image: "{{ kafka_image }}"
