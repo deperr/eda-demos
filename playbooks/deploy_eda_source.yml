@@ -1,9 +1,9 @@
 ---
-- name: Deploy EDA Event Source Stack on web01
+- name: Deploy EDA Event Source Stack on web server
   hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
-    kafka_image: "docker.io/bitnami/kafka:latest"
+    kafka_image: "quay.io/bitnami/kafka:3.7"
     filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
     network_name: "eda_network"
 
