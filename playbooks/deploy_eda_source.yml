@@ -5,22 +5,16 @@
   vars:
     kafka_image: "docker.io/apache/kafka:latest"
     container_name: "kafka-eda"
-    # KRaft requires a static Cluster ID. This is a standard Base64 UUID.
     cluster_id: "MkU3OEVBNTcwNTJENDM2Qk"
-    # Ensure this matches the host the rulebook will talk to
     advertised_hostname: "web03.dperrone.dev"
 
   tasks:
-    # --- PHASE 1: THE SCORCHED EARTH CLEANUP ---
+
     - name: Stop and remove existing Kafka container if it exists
       containers.podman.podman_container:
         name: "{{ container_name }}"
         state: absent
         stop_time: 10
-
-    - name: Kill any lingering Kafka/Zookeeper processes
-      ansible.builtin.shell: "pkill -9 -f 'kafka|zookeeper' || true"
-      changed_when: false
 
     - name: Remove stale data directories and logs
       ansible.builtin.file:
@@ -32,7 +26,6 @@
         - "/tmp/kafka-logs"
         - "/tmp/zookeeper"
 
-    # --- PHASE 2: FRESH DEPLOYMENT ---
     - name: Ensure Podman is installed
       ansible.builtin.dnf:
         name: podman
