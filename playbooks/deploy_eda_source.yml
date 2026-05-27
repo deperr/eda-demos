@@ -3,61 +3,65 @@
   hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
-    kafka_image: "public.ecr.aws/bitnami/kafka:3.7"
+    kafka_image: "docker.io/apache/kafka:4.3.0"
     filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
     pod_network: "eda_network"
 
+    cluster_id: "REhBLUVEQS1IQU1FLUxBQi0yMDI2"
+
   tasks:
+
     - name: Create Podman network
       containers.podman.podman_network:
         name: "{{ pod_network }}"
         state: present
 
-    - name: Deploy Kafka (Bitnami via ECR Public)
+    - name: Deploy Apache Kafka 4.3.0
       containers.podman.podman_container:
         name: kafka-broker
         image: "{{ kafka_image }}"
         network: "{{ pod_network }}"
         state: started
         restart_policy: always
+        security_opt:
+          - "seccomp=unconfined"
         publish:
           - "9092:9092"
         env:
-          KAFKA_CFG_NODE_ID: "0"
-          KAFKA_CFG_PROCESS_ROLES: "controller,broker"
-          KAFKA_CFG_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
-          KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://web03.dperrone.dev:9092"
-          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@localhost:9093"
-          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+          KAFKA_NODE_ID: "1"
+          KAFKA_PROCESS_ROLES: "broker,controller"
+          KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://web03.dperrone.dev:9092"
+          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+          KAFKA_CLUSTER_ID: "{{ cluster_id }}"
 
-    - name: Configure and Deploy Filebeat
-      block:
-        - name: Create config dir
-          ansible.builtin.file:
-            path: /opt/filebeat
-            state: directory
-            mode: '0755'
+    - name: Create Filebeat config directory
+      ansible.builtin.file:
+        path: /opt/filebeat
+        state: directory
+        mode: '0755'
 
-        - name: Template config
-          ansible.builtin.copy:
-            dest: /opt/filebeat/filebeat.yml
-            content: |
-              filebeat.inputs:
-              - type: log
-                enabled: true
-                paths: ["/hostfs/etc/sudoers", "/hostfs/etc/hosts"]
-              output.kafka:
-                hosts: ["kafka-broker:9092"]
-                topic: "system-events"
+    - name: Template Filebeat Configuration
+      ansible.builtin.copy:
+        dest: /opt/filebeat/filebeat.yml
+        content: |
+          filebeat.inputs:
+          - type: log
+            enabled: true
+            paths: ["/hostfs/etc/sudoers", "/hostfs/etc/hosts"]
+          output.kafka:
+            hosts: ["kafka-broker:9092"]
+            topic: "system-events"
 
-        - name: Deploy Filebeat Container
-          containers.podman.podman_container:
-            name: filebeat-shipper
-            image: "{{ filebeat_image }}"
-            network: "{{ pod_network }}"
-            state: started
-            user: "root"
-            volumes:
-              - "/opt/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
-              - "/etc:/hostfs/etc:ro,Z"
+    - name: Deploy Filebeat Container
+      containers.podman.podman_container:
+        name: filebeat-shipper
+        image: "{{ filebeat_image }}"
+        network: "{{ pod_network }}"
+        state: started
+        user: "root"
+        volumes:
+          - "/opt/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
+          - "/etc:/hostfs/etc:ro,Z"
