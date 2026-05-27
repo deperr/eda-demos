@@ -10,10 +10,10 @@
 
   rules:
     - name: Sudoers file was modified
-      condition: event.file_watch.status == "modified"
+      condition: event.type == "FileModifiedEvent"
       actions:
         - debug:
-            msg: "ALERT: /etc/sudoers was modified on {{ event.meta.hosts }}"
+            msg: "ALERT: {{ event.src_path }} was modified on {{ event.meta.hosts }}"
         - run_job_template:
             name: "EDA | Remediate Sudoers Change"
             organization: "Default"
