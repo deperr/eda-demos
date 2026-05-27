@@ -3,53 +3,43 @@
   hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
-    kafka_image: "docker.io/apache/kafka:4.3.0"
+    kafka_image: "docker.io/bitnami/kafka:3.7"
     filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
-    
     pod_network: "eda_network"
-    filebeat_conf_dir: "/opt/filebeat"
-
-    kafka_cluster_id: "REhBLUVEQS1IQU1FLUxBQi0yMDI2"
 
   tasks:
-    - name: Ensure Podman is installed
-      ansible.builtin.dnf:
-        name: podman
-        state: present
-
     - name: Create Podman network
       containers.podman.podman_network:
         name: "{{ pod_network }}"
-        state: present
 
-    - name: Deploy Apache Kafka 4.3.0 (Broker)
+    - name: Deploy Kafka (Secure Mode)
       containers.podman.podman_container:
         name: kafka-broker
         image: "{{ kafka_image }}"
         network: "{{ pod_network }}"
         state: started
         restart_policy: always
+        # NO privileged mode, NO seccomp=unconfined
         publish:
           - "9092:9092"
         env:
-          KAFKA_NODE_ID: "1"
-          KAFKA_PROCESS_ROLES: "broker,controller"
-          KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
-          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://web03.dperrone.dev:9092"
-          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
-          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-          KAFKA_CLUSTER_ID: "{{ kafka_cluster_id }}"
+          KAFKA_CFG_NODE_ID: "0"
+          KAFKA_CFG_PROCESS_ROLES: "controller,broker"
+          KAFKA_CFG_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+          KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://web03.dperrone.dev:9092"
+          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@localhost:9093"
+          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
 
-    - name: Create Filebeat configuration directory
+    - name: Create Filebeat config directory
       ansible.builtin.file:
-        path: "{{ filebeat_conf_dir }}"
+        path: /opt/filebeat
         state: directory
         mode: '0755'
 
     - name: Template Filebeat Configuration
       ansible.builtin.copy:
-        dest: "{{ filebeat_conf_dir }}/filebeat.yml"
+        dest: /opt/filebeat/filebeat.yml
         mode: '0644'
         content: |
           filebeat.inputs:
@@ -58,21 +48,20 @@
             paths:
               - /hostfs/etc/sudoers
               - /hostfs/etc/hosts
-          
           output.kafka:
             hosts: ["kafka-broker:9092"]
             topic: "system-events"
-            codec.json:
-              pretty: false
 
-    - name: Deploy Filebeat Shipper (Watcher)
+    - name: Deploy Filebeat (Using SELinux Labels)
       containers.podman.podman_container:
         name: filebeat-shipper
         image: "{{ filebeat_image }}"
         network: "{{ pod_network }}"
         state: started
-        restart_policy: always
-        user: "root" # Needed to read the mounted host files
+        user: "root"
         volumes:
-          - "{{ filebeat_conf_dir }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
-          - "/etc:/hostfs/etc:ro,Z" # Mounts Host /etc to Container /hostfs/etc
+          # The ':ro,Z' flag is the secret sauce. 
+          # It tells Podman: "This is Read-Only, and please re-label 
+          # this for SELinux so this specific container can see it."
+          - "/opt/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
+          - "/etc:/hostfs/etc:ro,Z"
