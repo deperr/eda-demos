@@ -4,6 +4,7 @@
   become: false
   vars:
     kafka_image: "docker.io/apache/kafka:latest"
+    filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
     cluster_id: "MkU3OEVBNTcwNTJENDM2Qk"
     advertised_hostname: "{{ _hosts }}"
     filebeat_conf_dir: "{{ ansible_user_dir }}/filebeat-config"
