@@ -10,23 +10,6 @@
 
   tasks:
 
-    # - name: Stop and remove existing Kafka container if it exists
-    #   containers.podman.podman_container:
-    #     name: "{{ container_name }}"
-    #     state: absent
-    #     stop_time: 10
-
-    # - name: Remove stale data directories and logs
-    #   become: true
-    #   ansible.builtin.file:
-    #     path: "{{ item }}"
-    #     state: absent
-    #   loop:
-    #     - "/var/lib/kafka"
-    #     - "/var/lib/zookeeper"
-    #     - "/tmp/kafka-logs"
-    #     - "/tmp/zookeeper"
-
     - name: Ensure Podman is installed
       become: true
       ansible.builtin.dnf:
@@ -62,6 +45,41 @@
           KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
         volume:
           - "kafka_data:/var/lib/kafka/data:Z"
+
+    - name: Create Filebeat directory in home
+      ansible.builtin.file:
+        path: "{{ filebeat_conf_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Configure Filebeat
+      ansible.builtin.copy:
+        dest: "{{ filebeat_conf_dir }}/filebeat.yml"
+        mode: '0600'
+        content: |
+          filebeat.inputs:
+          - type: log
+            enabled: true
+            paths:
+              - /var/log/host_logs/*.log
+          
+          output.kafka:
+            hosts: ["web02.dperrone.dev:9092"]
+            topic: "{{ kafka_topic }}"
+
+    - name: Run Filebeat Container
+      become: true
+      containers.podman.podman_container:
+        name: filebeat-eda
+        image: "{{ filebeat_image }}"
+        user: root
+        state: started
+        recreate: yes
+        restart_policy: always
+        volume:
+          - "{{ filebeat_conf_dir }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
+          - "/var/log:/var/log/host_logs:ro,Z"
+          - "filebeat_data:/usr/share/filebeat/data:Z"
 
     - name: Wait for Kafka to respond on 9092
       ansible.builtin.wait_for:
