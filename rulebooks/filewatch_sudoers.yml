@@ -4,12 +4,12 @@
   hosts: all
   sources:
     - ansible.eda.file_watch:
-        path: /etc/sudoers
+        path: /tmp
         recursive: false
 
   rules:
     - name: Sudoers file was modified
-      condition: event.type == "FileModifiedEvent"
+      condition: event.type == "FileModifiedEvent" or event.type == "FileCreatedEvent"
       actions:
         - debug:
             msg: "ALERT: {{ event.src_path }} was modified on {{ event.meta.hosts }}"

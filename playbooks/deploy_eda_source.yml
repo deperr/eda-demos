@@ -1,0 +1,68 @@
+---
+- name: Deploy EDA Event Source Stack on web01
+  hosts: "{{ _hosts | default(omit) }}"
+  become: true
+  vars:
+    kafka_image: "bitnami/kafka:latest"
+    filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
+    network_name: "eda_network"
+
+  tasks:
+    - name: Ensure Podman is installed
+      ansible.builtin.dnf:
+        name: podman
+        state: present
+
+    - name: Create Podman network for inter-container talk
+      containers.podman.podman_network:
+        name: "{{ network_name }}"
+
+    - name: Deploy Kafka Broker Container
+      containers.podman.podman_container:
+        name: kafka-broker
+        image: "{{ kafka_image }}"
+        network: "{{ network_name }}"
+        publish:
+          - "9092:9092"
+        env:
+          KAFKA_CFG_NODE_ID: "0"
+          KAFKA_CFG_PROCESS_ROLES: "controller,broker"
+          KAFKA_CFG_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@localhost:9093"
+          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+          KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://web01.dperrone.dev:9092"
+        state: started
+
+    - name: Create local Filebeat config directory
+      ansible.builtin.file:
+        path: /opt/filebeat
+        state: directory
+        mode: '0755'
+
+    - name: Generate Filebeat Configuration
+      ansible.builtin.copy:
+        dest: /opt/filebeat/filebeat.yml
+        mode: '0644'
+        content: |
+          filebeat.inputs:
+          - type: log
+            enabled: true
+            paths:
+              - /hostfs/etc/sudoers
+              - /hostfs/etc/hosts
+          
+          output.kafka:
+            hosts: ["kafka-broker:9092"]
+            topic: "system-events"
+
+    - name: Deploy Filebeat Container (The Watcher)
+      containers.podman.podman_container:
+        name: filebeat-shipper
+        image: "{{ filebeat_image }}"
+        network: "{{ network_name }}"
+        user: "root"
+        volumes:
+          - /opt/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z
+          - /etc:/hostfs/etc:ro,Z
+        state: started
