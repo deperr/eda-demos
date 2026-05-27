@@ -18,6 +18,29 @@
         name: podman
         state: present
 
+    - name: Grant user search access to audit directory
+      become: true
+      ansible.posix.acl:
+        path: /var/log/audit
+        entity: "{{ ansible_user_id }}"
+        etype: user
+        permissions: rx
+        state: present
+
+    - name: Grant user read access to specific logs
+      become: true
+      ansible.posix.acl:
+        path: "{{ item }}"
+        entity: "{{ ansible_user_id }}"
+        etype: user
+        permissions: r
+        state: present
+      loop:
+        - /var/log/messages
+        - /var/log/secure
+        - /var/log/audit/audit.log
+
+
     - name: Create persistent volume for Kafka
       containers.podman.podman_volume:
         name: kafka_data
