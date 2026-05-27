@@ -74,13 +74,18 @@
       containers.podman.podman_container:
         name: filebeat-eda
         image: "{{ filebeat_image }}"
-        user: root
+        user: root 
         state: started
         recreate: yes
         restart_policy: always
+        # Add this line to bypass SELinux confinement for this container
+        security_opt:
+          - "label=disable"
         volume:
+          # Keep the :ro,Z for your home config (that's safe to relabel)
           - "{{ filebeat_conf_dir }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
-          - "/var/log:/var/log/host_logs:ro,Z"
+          # REMOVE the :Z here. Just use :ro
+          - "/var/log:/var/log/host_logs:ro"
           - "filebeat_data:/usr/share/filebeat/data:Z"
 
     - name: Wait for Kafka to respond on 9092
