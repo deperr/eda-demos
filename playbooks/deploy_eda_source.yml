@@ -82,9 +82,7 @@
         security_opt:
           - "label=disable"
         volume:
-          # Keep the :ro,Z for your home config (that's safe to relabel)
           - "{{ filebeat_conf_dir }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
-          # REMOVE the :Z here. Just use :ro
           - "/var/log:/var/log/host_logs:ro"
           - "filebeat_data:/usr/share/filebeat/data:Z"
 
