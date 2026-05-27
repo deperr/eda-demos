@@ -3,65 +3,132 @@
   hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
-    kafka_image: "docker.io/apache/kafka:4.3.0"
-    filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
-    pod_network: "eda_network"
-
+    kafka_version: "3.7.0"
+    kafka_scala_version: "2.13"
+    kafka_install_dir: "/opt/kafka"
+    # A unique ID for the Kafka KRaft cluster
     cluster_id: "REhBLUVEQS1IQU1FLUxBQi0yMDI2"
 
   tasks:
-
-    - name: Create Podman network
-      containers.podman.podman_network:
-        name: "{{ pod_network }}"
+    ## --- SECTION 1: KAFKA INSTALLATION --- ##
+    
+    - name: Install Java 17
+      ansible.builtin.dnf:
+        name: java-17-openjdk-headless
         state: present
 
-    - name: Deploy Apache Kafka 4.3.0
-      containers.podman.podman_container:
-        name: kafka-broker
-        image: "{{ kafka_image }}"
-        network: "{{ pod_network }}"
-        state: started
-        restart_policy: always
-        security_opt:
-          - "seccomp=unconfined"
-        publish:
-          - "9092:9092"
-        env:
-          KAFKA_NODE_ID: "1"
-          KAFKA_PROCESS_ROLES: "broker,controller"
-          KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
-          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://web03.dperrone.dev:9092"
-          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
-          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-          KAFKA_CLUSTER_ID: "{{ cluster_id }}"
+    - name: Create kafka group
+      ansible.builtin.group:
+        name: kafka
+        state: present
 
-    - name: Create Filebeat config directory
+    - name: Create kafka user
+      ansible.builtin.user:
+        name: kafka
+        group: kafka
+        shell: /sbin/nologin
+        state: present
+
+    - name: Download and Unarchive Kafka
+      ansible.builtin.unarchive:
+        src: "https://archive.apache.org/dist/kafka/{{ kafka_version }}/kafka_{{ kafka_scala_version }}-{{ kafka_version }}.tgz"
+        dest: /opt
+        remote_src: yes
+        owner: kafka
+        group: kafka
+        creates: "/opt/kafka_{{ kafka_scala_version }}-{{ kafka_version }}"
+
+    - name: Create symlink to /opt/kafka
       ansible.builtin.file:
-        path: /opt/filebeat
-        state: directory
-        mode: '0755'
+        src: "/opt/kafka_{{ kafka_scala_version }}-{{ kafka_version }}"
+        dest: "{{ kafka_install_dir }}"
+        state: link
 
-    - name: Template Filebeat Configuration
+    - name: Format Kafka Storage (KRaft Mode)
+      ansible.builtin.command:
+        cmd: "{{ kafka_install_dir }}/bin/kafka-storage.sh format -t {{ cluster_id }} -c {{ kafka_install_dir }}/config/kraft/server.properties"
+      become_user: kafka
+      args:
+        creates: "{{ kafka_install_dir }}/logs/meta.properties"
+
+    - name: Create Kafka Systemd Service
       ansible.builtin.copy:
-        dest: /opt/filebeat/filebeat.yml
+        dest: /etc/systemd/system/kafka.service
+        content: |
+          [Unit]
+          Description=Apache Kafka Server
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=kafka
+          Group=kafka
+          Environment="KAFKA_HEAP_OPTS=-Xmx512M -Xms512M"
+          ExecStart={{ kafka_install_dir }}/bin/kafka-server-start.sh {{ kafka_install_dir }}/config/kraft/server.properties
+          ExecStop={{ kafka_install_dir }}/bin/kafka-server-stop.sh
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload Systemd
+
+    - name: Ensure Kafka is running
+      ansible.builtin.systemd:
+        name: kafka
+        state: started
+        enabled: true
+
+    ## --- SECTION 2: FILEBEAT INSTALLATION --- ##
+
+    - name: Import Elastic GPG Key
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+    - name: Add Elastic RPM Repository
+      ansible.builtin.yum_repository:
+        name: elastic-8.x
+        description: Elastic repository for 8.x packages
+        baseurl: https://artifacts.elastic.co/packages/8.x/yum
+        gpgcheck: yes
+        gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        enabled: yes
+
+    - name: Install Filebeat
+      ansible.builtin.dnf:
+        name: filebeat
+        state: present
+
+    - name: Configure Filebeat for Kafka Output
+      ansible.builtin.copy:
+        dest: /etc/filebeat/filebeat.yml
         content: |
           filebeat.inputs:
           - type: log
             enabled: true
-            paths: ["/hostfs/etc/sudoers", "/hostfs/etc/hosts"]
+            paths:
+              - /etc/sudoers
+              - /etc/hosts
+          
           output.kafka:
-            hosts: ["kafka-broker:9092"]
+            hosts: ["localhost:9092"]
             topic: "system-events"
+          
+          logging.level: info
+      notify: Restart Filebeat
 
-    - name: Deploy Filebeat Container
-      containers.podman.podman_container:
-        name: filebeat-shipper
-        image: "{{ filebeat_image }}"
-        network: "{{ pod_network }}"
+    - name: Ensure Filebeat is running
+      ansible.builtin.systemd:
+        name: filebeat
         state: started
-        user: "root"
-        volumes:
-          - "/opt/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
-          - "/etc:/hostfs/etc:ro,Z"
+        enabled: true
+
+  handlers:
+    - name: Reload Systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart Filebeat
+      ansible.builtin.systemd:
+        name: filebeat
+        state: restarted
