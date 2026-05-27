@@ -4,9 +4,10 @@
   become: false
   vars:
     kafka_image: "docker.io/apache/kafka:latest"
-    container_name: "kafka-eda"
     cluster_id: "MkU3OEVBNTcwNTJENDM2Qk"
     advertised_hostname: "{{ _hosts }}"
+    filebeat_conf_dir: "{{ ansible_user_dir }}/filebeat-config"
+    kafka_topic: "eda-events"
 
   tasks:
 
@@ -23,7 +24,7 @@
 
     - name: Run Official Apache Kafka (KRaft Mode)
       containers.podman.podman_container:
-        name: "{{ container_name }}"
+        name: "kafka-eda"
         image: "{{ kafka_image }}"
         state: started
         recreate: yes
