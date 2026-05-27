@@ -3,14 +3,14 @@
 - name: Monitor sudoers file for modifications
   hosts: all
   sources:
-    - ansible.eda.watchdog:
+    - ansible.eda.file_watch:
         paths:
           - /etc/sudoers
         recursive: false
 
   rules:
     - name: Sudoers file was modified
-      condition: event.watchdog.status == "modified"
+      condition: event.file_watch.status == "modified"
       actions:
         - debug:
             msg: "ALERT: /etc/sudoers was modified on {{ event.meta.hosts }}"
