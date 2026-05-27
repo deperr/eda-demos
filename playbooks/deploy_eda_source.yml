@@ -3,9 +3,13 @@
   hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
-    kafka_image: "quay.io/bitnami/kafka:3.7"
+    kafka_image: "docker.io/apache/kafka:4.3.0"
     filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
-    network_name: "eda_network"
+    
+    pod_network: "eda_network"
+    filebeat_conf_dir: "/opt/filebeat"
+
+    kafka_cluster_id: "REhBLUVEQS1IQU1FLUxBQi0yMDI2"
 
   tasks:
     - name: Ensure Podman is installed
@@ -13,36 +17,39 @@
         name: podman
         state: present
 
-    - name: Create Podman network for inter-container talk
+    - name: Create Podman network
       containers.podman.podman_network:
-        name: "{{ network_name }}"
+        name: "{{ pod_network }}"
+        state: present
 
-    - name: Deploy Kafka Broker Container
+    - name: Deploy Apache Kafka 4.3.0 (Broker)
       containers.podman.podman_container:
         name: kafka-broker
         image: "{{ kafka_image }}"
-        network: "{{ network_name }}"
+        network: "{{ pod_network }}"
+        state: started
+        restart_policy: always
         publish:
           - "9092:9092"
         env:
-          KAFKA_CFG_NODE_ID: "0"
-          KAFKA_CFG_PROCESS_ROLES: "controller,broker"
-          KAFKA_CFG_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
-          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@localhost:9093"
-          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://web01.dperrone.dev:9092"
-        state: started
+          KAFKA_NODE_ID: "1"
+          KAFKA_PROCESS_ROLES: "broker,controller"
+          KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://web03.dperrone.dev:9092"
+          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+          KAFKA_CLUSTER_ID: "{{ kafka_cluster_id }}"
 
-    - name: Create local Filebeat config directory
+    - name: Create Filebeat configuration directory
       ansible.builtin.file:
-        path: /opt/filebeat
+        path: "{{ filebeat_conf_dir }}"
         state: directory
         mode: '0755'
 
-    - name: Generate Filebeat Configuration
+    - name: Template Filebeat Configuration
       ansible.builtin.copy:
-        dest: /opt/filebeat/filebeat.yml
+        dest: "{{ filebeat_conf_dir }}/filebeat.yml"
         mode: '0644'
         content: |
           filebeat.inputs:
@@ -55,14 +62,17 @@
           output.kafka:
             hosts: ["kafka-broker:9092"]
             topic: "system-events"
+            codec.json:
+              pretty: false
 
-    - name: Deploy Filebeat Container (The Watcher)
+    - name: Deploy Filebeat Shipper (Watcher)
       containers.podman.podman_container:
         name: filebeat-shipper
         image: "{{ filebeat_image }}"
-        network: "{{ network_name }}"
-        user: "root"
-        volumes:
-          - /opt/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z
-          - /etc:/hostfs/etc:ro,Z
+        network: "{{ pod_network }}"
         state: started
+        restart_policy: always
+        user: "root" # Needed to read the mounted host files
+        volumes:
+          - "{{ filebeat_conf_dir }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
+          - "/etc:/hostfs/etc:ro,Z" # Mounts Host /etc to Container /hostfs/etc
