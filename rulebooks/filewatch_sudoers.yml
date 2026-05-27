@@ -4,8 +4,7 @@
   hosts: all
   sources:
     - ansible.eda.file_watch:
-        paths:
-          - /etc/sudoers
+        path: /etc/sudoers
         recursive: false
 
   rules:
