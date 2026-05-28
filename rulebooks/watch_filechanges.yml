@@ -11,20 +11,21 @@
 
   rules:
 
-    - name: Catch Everything and Print to Log
-      condition: true
-      action:
-        debug:
-          msg: "RAW AAP EVENT PAYLOAD: {{ event }}"
-
+    # - name: Catch Everything and Print to Log
+    #   condition: true
+    #   action:
+    #     debug:
+    #       msg: "RAW AAP EVENT PAYLOAD: {{ event }}"
 
     - name: Detect activity on /etc/shadow
-      condition: event.message is search("shadow")
+      # Updated to look inside the 'body' wrapper
+      condition: event.body.message is search("shadow")
       action:
         run_job_template:
-          name: "EDA | STIG Remediation" 
+          name: "STIG Remediation Job" 
           organization: "Default"
           job_args:
             extra_vars:
-              target_server: "{{ event.host.name }}"
-              offending_message: "{{ event.message }}"
+              # Updated to extract the variables from inside 'body'
+              target_server: "{{ event.body.host.name }}"
+              offending_message: "{{ event.body.message }}"
