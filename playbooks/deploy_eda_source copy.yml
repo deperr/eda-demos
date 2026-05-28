@@ -1,7 +1,7 @@
 ---
 
 - name: Setup Event-Driven Ansible Demo (Kafka & Filebeat)
-  hosts: all
+  hosts: "{{ _hosts | default(omit) }}"
   become: true
   vars:
     kafka_version: "3.7.0"
