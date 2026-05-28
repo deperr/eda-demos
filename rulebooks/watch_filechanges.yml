@@ -54,7 +54,7 @@
             msg: "STIG violation detected on {{ event.body.host.name }}. Throttling active to prevent loops."
 
         - run_job_template:
-            name: "STIG Remediation Job"
+            name: "EDA | STIG Remediation"
             organization: "Default"
             job_args:
               extra_vars:
