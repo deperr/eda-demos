@@ -5,7 +5,7 @@ server: "{{ lookup('env', 'AD_LDAP_SERVER') }}"
 bind_dn: "{{ lookup('env', 'AD_BIND_DN') }}"
 password: "{{ lookup('env', 'AD_BIND_PASSWORD') }}"
 
-search_base: "OU=Servers,DC=example,DC=com"
+search_base: "OU=Computers,DC=dperrone,DC=dev"
 
 # The rest of your config remains the same...
 keyed_groups:
