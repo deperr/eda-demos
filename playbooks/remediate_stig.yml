@@ -10,7 +10,8 @@
 
     - name: Show the event data
       ansible.builtin.debug:
-        msg: "An unauthorized change was detected on {{ inventory_hostname }}. The raw event was: {{ offending_message }}"
+        msg: "An unauthorized change was detected on {{ inventory_hostname }}.
+        # msg: "An unauthorized change was detected on {{ inventory_hostname }}. The raw event was: {{ offending_message }}"
     
     # - name: Extract the specific file name from the EDA payload
     #   ansible.builtin.set_fact:
