@@ -18,7 +18,10 @@
     #       msg: "RAW AAP EVENT PAYLOAD: {{ event }}"
 
     - name: Detect activity on /etc/shadow
-      condition: event.body.message is search("shadow|fstab|sshd_config|hosts")
+      condition: >
+        event.body.log.file.path == "/var/log/audit/audit.log"
+        and event.body.message is search("shadow|fstab|sshd_config|hosts")
+      # condition: event.body.message is search("shadow|fstab|sshd_config|hosts")
       # Change 'action' to 'actions' to accept a list of tasks
       actions:
         # 1. Print a custom debug message to the EDA Activation History log
