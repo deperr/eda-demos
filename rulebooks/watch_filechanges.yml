@@ -8,14 +8,16 @@
         port: 9092
         topic: eda-topic
         group_id: eda-demo-group
-  
+
   rules:
     - name: Detect activity on /etc/shadow
       condition: event.message is search("shadow")
       action:
-        run_playbook:
-          name: remediate_stig.yml
-          # Extract the hostname from the Filebeat JSON and pass it to AAP
-          extra_vars:
-            target_server: "{{ event.host.name }}"
-            offending_message: "{{ event.message }}"
+        run_job_template:
+          # This must exactly match the name of the Job Template in your Automation Controller
+          name: "STIG Remediation Job" 
+          organization: "Default"
+          job_args:
+            extra_vars:
+              target_server: "{{ event.host.name }}"
+              offending_message: "{{ event.message }}"
