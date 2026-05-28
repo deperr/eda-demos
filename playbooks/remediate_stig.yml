@@ -8,21 +8,21 @@
     # - name: Log the incident locally
     #   ansible.builtin.command: "logger 'AAP Automated Remediation triggered by EDA!'"
 
-    # - name: Show the event data
-    #   ansible.builtin.debug:
-    #     msg: "An unauthorized change was detected on {{ inventory_hostname }}. The raw event was: {{ offending_message }}"
-    
-    - name: Extract the specific file name from the EDA payload
-      ansible.builtin.set_fact:
-        # This will scan the raw log string and save the matched word as a variable
-        edited_file: "{{ offending_message | regex_search('shadow|fstab|sshd_config|hosts') }}"
-
-    # - name: Log the incident locally
-    #   ansible.builtin.command: "logger 'AAP Automated Remediation triggered for {{ edited_file }}!'"
-
-    - name: Show the event data in the AAP Job Logs
+    - name: Show the event data
       ansible.builtin.debug:
-        msg: >
-          An unauthorized change was detected on {{ inventory_hostname }}. 
-          The target file was: /etc/{{ edited_file }}. 
-          The raw event was: {{ offending_message }}
+        msg: "An unauthorized change was detected on {{ inventory_hostname }}. The raw event was: {{ offending_message }}"
+    
+    # - name: Extract the specific file name from the EDA payload
+    #   ansible.builtin.set_fact:
+    #     # This will scan the raw log string and save the matched word as a variable
+    #     edited_file: "{{ offending_message | regex_search('shadow|fstab|sshd_config|hosts') }}"
+
+    # # - name: Log the incident locally
+    # #   ansible.builtin.command: "logger 'AAP Automated Remediation triggered for {{ edited_file }}!'"
+
+    # - name: Show the event data in the AAP Job Logs
+    #   ansible.builtin.debug:
+    #     msg: >
+    #       An unauthorized change was detected on {{ inventory_hostname }}. 
+    #       The target file was: /etc/{{ edited_file }}. 
+    #       The raw event was: {{ offending_message }}
