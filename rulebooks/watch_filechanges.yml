@@ -10,12 +10,19 @@
         group_id: eda-demo-group
 
   rules:
+
+    - name: Catch Everything and Print to Log
+      condition: true
+      action:
+        debug:
+          msg: "RAW AAP EVENT PAYLOAD: {{ event }}"
+
+
     - name: Detect activity on /etc/shadow
       condition: event.message is search("shadow")
       action:
         run_job_template:
-          # This must exactly match the name of the Job Template in your Automation Controller
-          name: "STIG Remediation Job" 
+          name: "EDA | STIG Remediation" 
           organization: "Default"
           job_args:
             extra_vars:

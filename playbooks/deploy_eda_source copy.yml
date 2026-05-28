@@ -73,6 +73,13 @@
           line: 'advertised.listeners=PLAINTEXT://{{ kafka_bind_ip }}:9092'
         - regexp: '^controller\.quorum\.voters='
           line: 'controller.quorum.voters=1@{{ kafka_bind_ip }}:9093'
+        # --- Add these 3 lines for single-node setups ---
+        - regexp: '^offsets\.topic\.replication\.factor='
+          line: 'offsets.topic.replication.factor=1'
+        - regexp: '^transaction\.state\.log\.replication\.factor='
+          line: 'transaction.state.log.replication.factor=1'
+        - regexp: '^transaction\.state\.log\.min\.isr='
+          line: 'transaction.state.log.min.isr=1'
 
     - name: Check if KRaft storage is already formatted
       ansible.builtin.stat:
@@ -123,6 +130,16 @@
         state: started
         enabled: true
         daemon_reload: true
+
+    - name: Open firewall ports for Kafka and KRaft Controller
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop:
+        - 9092/tcp
+        - 9093/tcp
 
     # ==========================================
     # FILEBEAT SETUP
