@@ -1,121 +1,189 @@
 ---
-- name: Deploy EDA Event Source Stack on web server
+
+- name: Setup Event-Driven Ansible Demo (Kafka & Filebeat)
   hosts: "{{ _hosts | default(omit) }}"
-  become: false
+  become: true
   vars:
-    kafka_image: "docker.io/apache/kafka:latest"
-    filebeat_image: "docker.elastic.co/beats/filebeat:8.12.0"
-    cluster_id: "MkU3OEVBNTcwNTJENDM2Qk"
-    advertised_hostname: "{{ _hosts }}"
-    filebeat_conf_dir: "{{ ansible_user_dir }}/filebeat-config"
-    kafka_topic: "eda-events"
+    kafka_version: "3.7.0"
+    scala_version: "2.13"
+    kafka_dir: "/opt/kafka"
+    kafka_data_dir: "/var/lib/kafka-logs"
+    kafka_user: "kafka"
+    kafka_topic: "eda-topic"
 
   tasks:
 
-    - name: Ensure Podman is installed
-      become: true
+    - name: Install Java (OpenJDK 17) and archiving tools
       ansible.builtin.dnf:
-        name: podman
+        name:
+          - java-17-openjdk
+          - tar
+          - gzip
         state: present
 
-    - name: Grant user search access to audit directory
-      become: true
-      ansible.posix.acl:
-        path: /var/log/audit
-        entity: "{{ ansible_user_id }}"
-        etype: user
-        permissions: rx
+    - name: Create Kafka group
+      ansible.builtin.group:
+        name: "{{ kafka_user }}"
         state: present
 
-    - name: Grant user read access to specific logs
-      become: true
-      ansible.posix.acl:
-        path: "{{ item }}"
-        entity: "{{ ansible_user_id }}"
-        etype: user
-        permissions: r
-        state: present
+    - name: Create Kafka user
+      ansible.builtin.user:
+        name: "{{ kafka_user }}"
+        group: "{{ kafka_user }}"
+        system: true
+        create_home: false
+
+    - name: Create Kafka installation and data directories
       loop:
-        - /var/log/messages
-        - /var/log/secure
-        - /var/log/audit/audit.log
-
-
-    - name: Create persistent volume for Kafka
-      containers.podman.podman_volume:
-        name: kafka_data
-        state: present
-
-    - name: Run Official Apache Kafka (KRaft Mode)
-      become: true
-      containers.podman.podman_container:
-        name: "kafka-eda"
-        image: "{{ kafka_image }}"
-        state: started
-        recreate: yes
-        restart_policy: always
-        ports:
-          - "9092:9092"
-        env:
-          # Node configuration
-          KAFKA_NODE_ID: "1"
-          KAFKA_PROCESS_ROLES: "broker,controller"
-          KAFKA_CLUSTER_ID: "{{ cluster_id }}"
-          # Networking
-          KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
-          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://{{ advertised_hostname }}:9092"
-          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
-          # EDA Optimization: Allow auto-creation of topics
-          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-        volume:
-          - "kafka_data:/var/lib/kafka/data:Z"
-
-    - name: Create Filebeat directory in home
+        - "{{ kafka_dir }}"
+        - "{{ kafka_data_dir }}"
       ansible.builtin.file:
-        path: "{{ filebeat_conf_dir }}"
+        path: "{{ item }}"
         state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_user }}"
         mode: '0755'
 
-    - name: Configure Filebeat
-      become: true
+    - name: Download and extract Apache Kafka
+      ansible.builtin.unarchive:
+        src: "https://downloads.apache.org/kafka/{{ kafka_version }}/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+        dest: "{{ kafka_dir }}"
+        remote_src: true
+        extra_opts:
+          - --strip-components=1
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_user }}"
+        creates: "{{ kafka_dir }}/bin/kafka-server-start.sh"
+
+    - name: Update KRaft log directory so data survives reboots
+      ansible.builtin.lineinfile:
+        path: "{{ kafka_dir }}/config/kraft/server.properties"
+        regexp: '^log\.dirs='
+        line: 'log.dirs={{ kafka_data_dir }}'
+
+    - name: Check if KRaft storage is already formatted
+      register: kraft_meta
+      ansible.builtin.stat:
+        path: "{{ kafka_data_dir }}/meta.properties"
+
+    - name: Generate Kafka Cluster UUID
+      register: kafka_uuid
+      when: not kraft_meta.stat.exists
+      become_user: "{{ kafka_user }}"
+      ansible.builtin.command: "{{ kafka_dir }}/bin/kafka-storage.sh random-uuid"
+
+    - name: Format KRaft storage
+      when: not kraft_meta.stat.exists
+      become_user: "{{ kafka_user }}"
+      ansible.builtin.command: >
+        {{ kafka_dir }}/bin/kafka-storage.sh format
+        -t {{ kafka_uuid.stdout }}
+        -c {{ kafka_dir }}/config/kraft/server.properties
+
+    - name: Create Kafka systemd service
+      notify: Reload systemd
       ansible.builtin.copy:
-        dest: "{{ filebeat_conf_dir }}/filebeat.yml"
+        dest: /etc/systemd/system/kafka.service
+        content: |
+          [Unit]
+          Description=Apache Kafka Server (KRaft)
+          Documentation=http://kafka.apache.org/documentation.html
+          Requires=network.target
+          After=network.target
+
+          [Service]
+          Type=simple
+          User={{ kafka_user }}
+          Group={{ kafka_user }}
+          Environment="KAFKA_HEAP_OPTS=-Xmx1G -Xms1G"
+          ExecStart={{ kafka_dir }}/bin/kafka-server-start.sh {{ kafka_dir }}/config/kraft/server.properties
+          ExecStop={{ kafka_dir }}/bin/kafka-server-stop.sh
+          Restart=on-abnormal
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    - name: Start and enable Kafka service
+      ansible.builtin.systemd:
+        name: kafka
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    # FILEBEAT SETUP
+    - name: Import Elastic GPG Key
+      ansible.builtin.rpm_key:
+        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+    - name: Add Elastic Yum Repository
+      ansible.builtin.yum_repository:
+        name: elastic-8.x
+        description: Elastic repository for 8.x packages
+        baseurl: https://artifacts.elastic.co/packages/8.x/yum
+        gpgcheck: true
+        gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        enabled: true
+
+    - name: Install Filebeat
+      ansible.builtin.dnf:
+        name: filebeat
+        state: present
+
+    - name: Configure Filebeat (Send STIG-relevant logs and FIM to Kafka)
+      notify: Restart Filebeat
+      ansible.builtin.copy:
+        dest: /etc/filebeat/filebeat.yml
+        content: |
+          filebeat.inputs:
+            # 1. Standard System & Security Logs
+            - type: filestream
+              id: syslogs
+              enabled: true
+              paths:
+                - /var/log/messages
+                - /var/log/secure
+                - /var/log/audit/audit.log  # Highly recommended for STIG compliance
+
+            # 2. File Integrity Monitoring (FIM) for STIG sensitive configs
+            - type: file_integrity
+              id: stig-fim
+              enabled: true
+              paths:
+                - /etc/passwd
+                - /etc/shadow
+                - /etc/group
+                - /etc/sudoers
+                - /etc/ssh/sshd_config
+              # Optional: scan frequency if not using inotify (default is usually fine)
+              scan_frequency: 10s
+
+          # Drop default Elasticsearch output and configure Kafka
+          output.kafka:
+            hosts: ["localhost:9092"]
+            topic: '{{ kafka_topic }}'
+            partition.round_robin:
+              reachable_only: false
+            required_acks: 1
+            compression: gzip
+            max_message_bytes: 1000000
         owner: root
         group: root
         mode: '0600'
-        content: |
-          filebeat.inputs:
-          - type: log
-            enabled: true
-            paths:
-              - /var/log/host_logs/messages
-              - /var/log/host_logs/audit/audit.log
-          
-          output.kafka:
-            hosts: ["{{ _hosts }}:9092"]
-            topic: "{{ kafka_topic }}"
 
-    - name: Run Filebeat Container
-      become: true
-      containers.podman.podman_container:
-        name: filebeat-eda
-        image: "{{ filebeat_image }}"
-        user: root 
+    - name: Start and enable Filebeat service
+      ansible.builtin.systemd:
+        name: filebeat
         state: started
-        recreate: yes
-        restart_policy: always
-        # Add this line to bypass SELinux confinement for this container
-        security_opt:
-          - "label=disable"
-        volume:
-          - "{{ filebeat_conf_dir }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
-          - "/var/log:/var/log/host_logs:ro"
-          - "filebeat_data:/usr/share/filebeat/data:Z"
+        enabled: true
 
-    - name: Wait for Kafka to respond on 9092
-      ansible.builtin.wait_for:
-        port: 9092
-        host: "{{ advertised_hostname }}"
-        timeout: 60
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart Filebeat
+      ansible.builtin.systemd:
+        name: filebeat
+        state: restarted
