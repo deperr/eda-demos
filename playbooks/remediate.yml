@@ -1,0 +1,13 @@
+---
+
+- name: STIG Remediation Action
+  hosts: "{{ target_server }}"
+  become: true
+
+  tasks:
+    - name: Log the incident locally
+      ansible.builtin.command: "logger 'AAP Automated Remediation triggered by EDA!'"
+
+    - name: Show the event data
+      ansible.builtin.debug:
+        msg: "An unauthorized change was detected on {{ inventory_hostname }}. The raw event was: {{ offending_message }}"
