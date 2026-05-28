@@ -33,4 +33,3 @@
               extra_vars:
                 target_server: "{{ event.body.host.name }}"
                 offending_message: "{{ event.body.message }}"
-                edited_file: "{{ event.body.message | regex_search('shadow|fstab|sshd_config|hosts') }}"
