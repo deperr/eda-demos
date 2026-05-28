@@ -18,14 +18,18 @@
     #       msg: "RAW AAP EVENT PAYLOAD: {{ event }}"
 
     - name: Detect activity on /etc/shadow
-      # Updated to look inside the 'body' wrapper
       condition: event.body.message is search("shadow")
-      action:
-        run_job_template:
-          name: "EDA STIG Remediation" 
-          organization: "Default"
-          job_args:
-            extra_vars:
-              # Updated to extract the variables from inside 'body'
-              target_server: "{{ event.body.host.name }}"
-              offending_message: "{{ event.body.message }}"
+      # Change 'action' to 'actions' to accept a list of tasks
+      actions:
+        # 1. Print a custom debug message to the EDA Activation History log
+        - debug:
+            msg: "MATCH FOUND! STIG violation detected on {{ event.body.host.name }}. Launching remediation job..."
+            
+        # 2. Fire the Job Template in Automation Controller
+        - run_job_template:
+            name: "EDA | STIG Remediation" 
+            organization: "Default"
+            job_args:
+              extra_vars:
+                target_server: "{{ event.body.host.name }}"
+                offending_message: "{{ event.body.message }}"
