@@ -43,11 +43,11 @@
         and event.body.message is search("type=PATH")
         and event.body.message is search("shadow|fstab|sshd_config|hosts")
 
-      # throttle:
-      #   once_within: 2 minutes
-      #   group_by_attributes:
-      #     - event.body.host.name
-      #     - event.body.log.file.path
+      throttle:
+        once_within: 1 minute
+        group_by_attributes:
+          - event.body.host.name
+          - event.body.log.file.path
 
       actions:
         - debug:
