@@ -24,10 +24,10 @@
         # 1. Print a custom debug message to the EDA Activation History log
         - debug:
             msg: "MATCH FOUND! STIG violation detected on {{ event.body.host.name }}. Launching remediation job..."
-            
+
         # 2. Fire the Job Template in Automation Controller
         - run_job_template:
-            name: "EDA | STIG Remediation" 
+            name: "EDA | STIG Remediation"
             organization: "Default"
             job_args:
               extra_vars:

@@ -12,14 +12,16 @@
     kafka_topic: "eda-topic"
     # Uses the node's primary network IP so AAP can reach it
     kafka_bind_ip: "{{ ansible_default_ipv4.address }}"
-    
+
   tasks:
-    # ==========================================
-    # KAFKA SETUP (KRaft Mode)
-    # ==========================================
+
+    - name: Set up Kafka with KRaft
+      ansible.builtin.debug:
+        msg: "Starting Kafka setup ..."
+
     - name: Install Java (OpenJDK 17) and archiving tools
       ansible.builtin.dnf:
-        name: 
+        name:
           - java-17-openjdk
           - tar
           - gzip
@@ -38,15 +40,15 @@
         create_home: false
 
     - name: Create Kafka installation and data directories
+      loop:
+        - "{{ kafka_dir }}"
+        - "{{ kafka_data_dir }}"
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         owner: "{{ kafka_user }}"
         group: "{{ kafka_user }}"
         mode: '0755'
-      loop:
-        - "{{ kafka_dir }}"
-        - "{{ kafka_data_dir }}"
 
     - name: Download and extract Apache Kafka (From Permanent Archive)
       ansible.builtin.unarchive:
@@ -60,10 +62,6 @@
         creates: "{{ kafka_dir }}/bin/kafka-server-start.sh"
 
     - name: Configure KRaft properties (Network, IP, and Logging)
-      ansible.builtin.lineinfile:
-        path: "{{ kafka_dir }}/config/kraft/server.properties"
-        regexp: "{{ item.regexp }}"
-        line: "{{ item.line }}"
       loop:
         - regexp: '^log\.dirs='
           line: 'log.dirs={{ kafka_data_dir }}'
@@ -80,27 +78,32 @@
           line: 'transaction.state.log.replication.factor=1'
         - regexp: '^transaction\.state\.log\.min\.isr='
           line: 'transaction.state.log.min.isr=1'
+      ansible.builtin.lineinfile:
+        path: "{{ kafka_dir }}/config/kraft/server.properties"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
 
     - name: Check if KRaft storage is already formatted
+      register: kraft_meta
       ansible.builtin.stat:
         path: "{{ kafka_data_dir }}/meta.properties"
-      register: kraft_meta
 
     - name: Generate Kafka Cluster UUID
-      ansible.builtin.command: "{{ kafka_dir }}/bin/kafka-storage.sh random-uuid"
       register: kafka_uuid
       when: not kraft_meta.stat.exists
       become_user: "{{ kafka_user }}"
+      ansible.builtin.command: "{{ kafka_dir }}/bin/kafka-storage.sh random-uuid"
 
     - name: Format KRaft storage
+      when: not kraft_meta.stat.exists
+      become_user: "{{ kafka_user }}"
       ansible.builtin.command: >
         {{ kafka_dir }}/bin/kafka-storage.sh format 
         -t {{ kafka_uuid.stdout }} 
         -c {{ kafka_dir }}/config/kraft/server.properties
-      when: not kraft_meta.stat.exists
-      become_user: "{{ kafka_user }}"
 
     - name: Create Kafka systemd service
+      notify: Reload systemd
       ansible.builtin.copy:
         dest: /etc/systemd/system/kafka.service
         content: |
@@ -122,7 +125,6 @@
           [Install]
           WantedBy=multi-user.target
         mode: '0644'
-      notify: Reload systemd
 
     - name: Start and enable Kafka service
       ansible.builtin.systemd:
@@ -131,19 +133,24 @@
         enabled: true
         daemon_reload: true
 
+    - name: Configure firewall
+      ansible.builtin.debug:
+        msg: "Configuring firewall with Kafka ports ..."
+
     - name: Open firewall ports for Kafka and KRaft Controller
+      loop:
+        - 9092/tcp
+        - 9093/tcp
       ansible.posix.firewalld:
         port: "{{ item }}"
         permanent: true
         state: enabled
         immediate: true
-      loop:
-        - 9092/tcp
-        - 9093/tcp
 
-    # ==========================================
-    # FILEBEAT SETUP
-    # ==========================================
+    - name: Set up Filebeat
+      ansible.builtin.debug:
+        msg: "Starting File Beat setup ..."
+
     - name: Import Elastic GPG Key
       ansible.builtin.rpm_key:
         key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
@@ -164,6 +171,7 @@
         state: present
 
     - name: Configure Filebeat (Send STIG/auditd logs to Kafka)
+      notify: Restart Filebeat
       ansible.builtin.copy:
         dest: /etc/filebeat/filebeat.yml
         content: |
@@ -188,7 +196,6 @@
         owner: root
         group: root
         mode: '0600'
-      notify: Restart Filebeat
 
     - name: Start and enable Filebeat service
       ansible.builtin.systemd:
