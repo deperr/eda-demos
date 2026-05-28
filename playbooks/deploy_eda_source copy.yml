@@ -203,6 +203,20 @@
         state: started
         enabled: true
 
+    - name: Deploy STIG file monitoring rules for EDA
+      ansible.builtin.copy:
+        dest: /etc/audit/rules.d/eda-stig.rules
+        content: |
+          # Monitor critical system files for modification
+          -w /etc/shadow -p wa -k shadow_monitor
+          -w /etc/fstab -p wa -k fstab_monitor
+          -w /etc/ssh/sshd_config -p wa -k sshd_config_monitor
+          -w /etc/hosts -p wa -k hosts_monitor
+        owner: root
+        group: root
+        mode: '0600'
+      notify: Reload auditd rules
+
   handlers:
     - name: Reload systemd
       ansible.builtin.systemd:
@@ -212,3 +226,6 @@
       ansible.builtin.systemd:
         name: filebeat
         state: restarted
+
+    - name: Reload auditd rules
+      ansible.builtin.command: augenrules --load
