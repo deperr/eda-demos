@@ -11,11 +11,11 @@
 
   rules:
 
-    - name: Catch Everything and Print to Log
-      condition: event.body is defined
-      action:
-        debug:
-          msg: "RAW AAP EVENT PAYLOAD: {{ event }}"
+    # - name: Catch Everything and Print to Log
+    #   condition: event.body is defined
+    #   action:
+    #     debug:
+    #       msg: "RAW AAP EVENT PAYLOAD: {{ event }}"
 
     # - name: Detect activity on /etc/shadow
     #   condition: >
