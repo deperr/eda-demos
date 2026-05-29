@@ -9,3 +9,7 @@
     - name: Call the Kafka role
       ansible.builtin.include_role:
         name: kafka
+
+    - name: Call the Filebeat role
+      ansible.builtin.include_role:
+        name: filebeat
