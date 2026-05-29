@@ -1,5 +1,66 @@
 ---
-# RHEL 9 STIG v2r8 - SSH configuration defaults
+# RHEL 9 STIG v2r8 - Hardening defaults
+
+# ============================================================
+# Remediation mapping: audit key -> tasks_from file
+# Used by the remediation playbook to target specific configs
+# ============================================================
+stig_remediation_map:
+  sshd_config_monitor: sshd.yml
+  sshd_config_d_monitor: sshd.yml
+  login_defs_monitor: login_defs.yml
+  sysctl_monitor: sysctl.yml
+  sysctl_d_monitor: sysctl.yml
+
+# ============================================================
+# login.defs (V-257847, V-257849, V-257853, V-257857, V-257861)
+# ============================================================
+stig_pass_max_days: 60
+stig_pass_min_days: 1
+stig_pass_min_len: 15
+stig_pass_warn_age: 7
+stig_encrypt_method: "SHA512"
+stig_umask: "077"
+stig_create_home: "yes"
+stig_fail_delay: 4
+stig_uid_min: 1000
+
+# ============================================================
+# sysctl kernel & network hardening
+# ============================================================
+stig_sysctl_params:
+  - key: net.ipv4.conf.all.accept_source_route
+    value: 0
+  - key: net.ipv4.conf.default.accept_source_route
+    value: 0
+  - key: net.ipv4.conf.all.accept_redirects
+    value: 0
+  - key: net.ipv4.conf.default.accept_redirects
+    value: 0
+  - key: net.ipv4.conf.all.send_redirects
+    value: 0
+  - key: net.ipv4.conf.default.send_redirects
+    value: 0
+  - key: net.ipv4.conf.all.log_martians
+    value: 1
+  - key: net.ipv4.icmp_echo_ignore_broadcasts
+    value: 1
+  - key: net.ipv4.tcp_syncookies
+    value: 1
+  - key: net.ipv6.conf.all.accept_source_route
+    value: 0
+  - key: net.ipv6.conf.default.accept_source_route
+    value: 0
+  - key: net.ipv6.conf.all.accept_redirects
+    value: 0
+  - key: net.ipv6.conf.default.accept_redirects
+    value: 0
+  - key: kernel.randomize_va_space
+    value: 2
+
+# ============================================================
+# SSH configuration defaults
+# ============================================================
 
 sshd_port: 22
 sshd_listen_address: "0.0.0.0"

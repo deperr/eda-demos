@@ -5,28 +5,37 @@
   become: true
 
   tasks:
-    # - name: Log the incident locally
-    #   ansible.builtin.command: "logger 'AAP Automated Remediation triggered by EDA!'"
 
-    # - name: Show the event data
-    #   ansible.builtin.debug:
-    #     msg: "An unauthorized change was detected on {{ inventory_hostname }}. The raw event was: {{ offending_message }}"
-    
-    - name: Extract the specific file name from the EDA payload
+    - name: Extract the audit key from the EDA payload
       ansible.builtin.set_fact:
-        # This will scan the raw log string and save the matched word as a variable
-        edited_file: "{{ offending_message | regex_search('shadow|fstab|sshd_config|hosts') }}"
+        audit_key: "{{ offending_message | regex_search('key=\"(\\w+)\"', '\\1') | first | default('') }}"
+
+    - name: Resolve the remediation task file from the role defaults
+      ansible.builtin.set_fact:
+        remediation_task: "{{ stig_remediation_map[audit_key] | default('') }}"
+      vars:
+        stig_remediation_map: "{{ lookup('vars', 'stig_remediation_map', default={}) }}"
 
     - name: Log the incident locally
-      ansible.builtin.command: "logger 'AAP Automated Remediation triggered for {{ edited_file }}!'"
+      ansible.builtin.command: "logger 'AAP Automated Remediation triggered for audit key={{ audit_key }} on {{ inventory_hostname }}'"
 
     - name: Show the event data in the AAP Job Logs
       ansible.builtin.debug:
         msg: >
-          An unauthorized change was detected on {{ inventory_hostname }}. 
-          The target file was: /etc/{{ edited_file }}. 
-          The raw event was: {{ offending_message }}
+          An unauthorized change was detected on {{ inventory_hostname }}.
+          Audit key: {{ audit_key }}.
+          Remediation task: {{ remediation_task | default('none - manual review required') }}.
+          Raw event: {{ offending_message }}
 
-    - name: Call the STIG Hardening role
+    - name: Run targeted STIG remediation
+      when: remediation_task | length > 0
       ansible.builtin.include_role:
         name: stig_hardening
+        tasks_from: "{{ remediation_task }}"
+
+    - name: Alert on changes with no auto-remediation
+      when: remediation_task | length == 0
+      ansible.builtin.debug:
+        msg: >
+          STIG ALERT: Change detected (key={{ audit_key }}) on {{ inventory_hostname }}.
+          No auto-remediation template available - manual review required.
