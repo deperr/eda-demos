@@ -26,3 +26,7 @@
           An unauthorized change was detected on {{ inventory_hostname }}. 
           The target file was: /etc/{{ edited_file }}. 
           The raw event was: {{ offending_message }}
+
+    - name: Call the STIG Hardening role
+      ansible.builtin.include_role:
+        name: stig_hardening
