@@ -41,7 +41,7 @@
       condition: >
         event.body.log.file.path == "/var/log/audit/audit.log"
         and event.body.message is search("type=PATH")
-        and event.body.message is search("key=\"\\w+_monitor\"")
+        and event.body.message is search("_monitor")
 
       throttle:
         once_within: 1 minute
