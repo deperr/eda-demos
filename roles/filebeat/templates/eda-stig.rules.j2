@@ -1,0 +1,5 @@
+# Monitor critical system files for modification
+-w /etc/shadow -p wa -k shadow_monitor
+-w /etc/fstab -p wa -k fstab_monitor
+-w /etc/ssh/sshd_config -p wa -k sshd_config_monitor
+-w /etc/hosts -p wa -k hosts_monitor

@@ -1,0 +1,9 @@
+---
+
+- name: Restart Filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    state: restarted
+
+- name: Reload auditd rules
+  ansible.builtin.command: augenrules --load

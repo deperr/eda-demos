@@ -1,0 +1,44 @@
+---
+
+- name: Import Elastic GPG Key
+  ansible.builtin.rpm_key:
+    key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+
+- name: Add Elastic Yum Repository
+  ansible.builtin.yum_repository:
+    name: elastic-8.x
+    description: Elastic repository for 8.x packages
+    baseurl: https://artifacts.elastic.co/packages/8.x/yum
+    gpgcheck: true
+    gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    enabled: true
+
+- name: Install Filebeat
+  ansible.builtin.dnf:
+    name: filebeat
+    state: present
+
+- name: Configure Filebeat (Send STIG/auditd logs to Kafka)
+  notify: Restart Filebeat
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Start and enable Filebeat service
+  ansible.builtin.systemd:
+    name: filebeat
+    state: started
+    enabled: true
+
+- name: Deploy STIG file monitoring rules for EDA
+  ansible.builtin.template:
+    src: eda-stig.rules.j2
+    dest: /etc/audit/rules.d/eda-stig.rules
+    owner: root
+    group: root
+    mode: '0600'
+  notify: Reload auditd rules

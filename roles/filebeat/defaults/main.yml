@@ -1,0 +1,4 @@
+---
+kafka_topic: "eda-topic"
+# Uses the node's primary network IP so AAP can reach it
+kafka_bind_ip: "{{ ansible_default_ipv4.address }}"
