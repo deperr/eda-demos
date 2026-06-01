@@ -1,0 +1,34 @@
+---
+
+- name: Inject STIG Violations for EDA Demo
+  hosts: "{{ _hosts | default(omit) }}"
+  become: true
+
+  vars:
+    # Which violations to inject (override via survey or extra_vars)
+    break_sshd: true
+    break_login_defs: true
+    break_sysctl: true
+
+  tasks:
+
+    - name: "SSHD | Disable public key auth (STIG violation)"
+      when: break_sshd | bool
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PubkeyAuthentication'
+        line: 'PubkeyAuthentication no'
+
+    - name: "LOGIN.DEFS | Set password max age to unlimited (STIG violation)"
+      when: break_login_defs | bool
+      ansible.builtin.lineinfile:
+        path: /etc/login.defs
+        regexp: '^PASS_MAX_DAYS'
+        line: 'PASS_MAX_DAYS   99999'
+
+    - name: "SYSCTL | Disable ASLR (STIG violation)"
+      when: break_sysctl | bool
+      ansible.builtin.lineinfile:
+        path: /etc/sysctl.d/99-stig.conf
+        regexp: '^kernel.randomize_va_space'
+        line: 'kernel.randomize_va_space = 0'
