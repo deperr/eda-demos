@@ -19,12 +19,18 @@
 
   tasks:
 
-    - name: Randomize which violations to inject
+    - name: Pick one random violation to inject
       run_once: true
+      vars:
+        violations:
+          - { sshd: true,  login_defs: false, sysctl: false }
+          - { sshd: false, login_defs: true,  sysctl: false }
+          - { sshd: false, login_defs: false, sysctl: true  }
+        picked: "{{ violations | random }}"
       ansible.builtin.set_fact:
-        break_sshd: "{{ (break_sshd == 'random') | ternary([true, false] | random, break_sshd | bool) }}"
-        break_login_defs: "{{ (break_login_defs == 'random') | ternary([true, false] | random, break_login_defs | bool) }}"
-        break_sysctl: "{{ (break_sysctl == 'random') | ternary([true, false] | random, break_sysctl | bool) }}"
+        break_sshd: "{{ picked.sshd }}"
+        break_login_defs: "{{ picked.login_defs }}"
+        break_sysctl: "{{ picked.sysctl }}"
 
     - name: Show which violations will be injected
       run_once: true
