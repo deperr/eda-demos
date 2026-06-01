@@ -5,12 +5,36 @@
   become: true
 
   vars:
-    # Which violations to inject (override via survey or extra_vars)
-    break_sshd: true
-    break_login_defs: true
-    break_sysctl: true
+    # Which violations to inject
+    # break_sshd: true
+    # break_login_defs: true
+    # break_sysctl: true
+    # Set to true/false to force, or "random" to let the playbook decide
+    break_sshd: random
+    break_login_defs: random
+    break_sysctl: random
+    # Random delay range in minutes (1-10 by default)
+    delay_min: 1
+    delay_max: 10
 
   tasks:
+
+    - name: Randomize which violations to inject
+      run_once: true
+      ansible.builtin.set_fact:
+        break_sshd: "{{ (break_sshd == 'random') | ternary([true, false] | random, break_sshd | bool) }}"
+        break_login_defs: "{{ (break_login_defs == 'random') | ternary([true, false] | random, break_login_defs | bool) }}"
+        break_sysctl: "{{ (break_sysctl == 'random') | ternary([true, false] | random, break_sysctl | bool) }}"
+
+    - name: Show which violations will be injected
+      run_once: true
+      ansible.builtin.debug:
+        msg: "Injecting -> sshd: {{ break_sshd }}, login.defs: {{ break_login_defs }}, sysctl: {{ break_sysctl }}"
+
+    # - name: Wait a random amount of time before injecting violations
+    #   run_once: true
+    #   ansible.builtin.wait_for:
+    #     timeout: "{{ range(delay_min | int * 60, delay_max | int * 60 + 1) | random }}"
 
     - name: "SSHD | Disable public key auth (STIG violation)"
       when: break_sshd | bool
