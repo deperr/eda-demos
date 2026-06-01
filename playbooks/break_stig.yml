@@ -22,15 +22,11 @@
     - name: Pick one random violation to inject
       run_once: true
       vars:
-        violations:
-          - { sshd: true,  login_defs: false, sysctl: false }
-          - { sshd: false, login_defs: true,  sysctl: false }
-          - { sshd: false, login_defs: false, sysctl: true  }
-        picked: "{{ violations | random }}"
+        pick: "{{ range(0, 3) | random }}"
       ansible.builtin.set_fact:
-        break_sshd: "{{ picked.sshd }}"
-        break_login_defs: "{{ picked.login_defs }}"
-        break_sysctl: "{{ picked.sysctl }}"
+        break_sshd: "{{ pick == '0' }}"
+        break_login_defs: "{{ pick == '1' }}"
+        break_sysctl: "{{ pick == '2' }}"
 
     - name: Show which violations will be injected
       run_once: true
